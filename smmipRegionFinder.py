@@ -6,7 +6,7 @@ Created on Mon Mar 22 09:44:19 2021
 """
 
 import argparse
-
+import os
 
 
 
@@ -137,7 +137,7 @@ def group_smmips(smmips_coordinates, distance):
                 if chromo not in D:
                     D[chromo] = []
                 D[chromo].append(group)
-               
+    return D
             
 def collapse_regions(groups):
     '''
@@ -187,47 +187,58 @@ def add_buffer(regions, distance):
     return regions
 
 
-def find_smmips_regions(smmip_panel, distance):
+def find_smmips_regions(smmip_panel, distance, outdir):
     '''
-    (str, int) -> list
+    (str, int, str | None) -> None
     
-    Returns a list of coordinates for each smmip region that includes neighboring smmips
+    Write a bed file with the coordinates for each smmip region that includes neighboring smmips
     distant from distance or less. Each region is buffered with distance.
     
     Parameters
     ----------
     - smmip_panel (str): Path to panel file with smmip information
     - distance (int): Minimum distance between smmips and buffer around region coordinates
+    - outdir (str | None): Directory where to save the bed file with region coordinates
     '''
+    
+    distance = int(distance)
     
     # read panel
     panel = read_panel(smmip_panel)
     # collect smmip coordinates on each chromosome
-    smmips-coordinates = collect_smmip_regions(panel)
+    smmips_coordinates = collect_smmip_regions(panel)
     # group smmips by distance
     groups = group_smmips(smmips_coordinates, distance)
     # get the coordinates of the regions for each group
     regions = collapse_regions(groups)
     # add a buffer around the region coordinates
     regions = add_buffer(regions, distance)
-    # make a lost of coordinates for each region [chromo, start, end]
+    # make a list of coordinates for each region [chromo, start, end]
     L = []
     for chromo in regions:
         for region in regions[chromo]:
-            L.append([chromo, region[0], region[1]])
-    return L
-
+            L.append([chromo, str(region[0]), str(region[1])])
+    L.sort()
+    
+    outputfile = 'smmipRegions_{0}.bed'.format(str(distance))
+    if outdir:
+        outputfile = os.path.join(outdir, outputfile)
+    newfile = open(outputfile, 'w')
+    for i in L:
+        newfile.write('\t'.join(i) + '\n')
+    newfile.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='smmipRegionFinder.py', description="A script to identify regions with smmips grouped by distance from a smmip panel")
     
     parser.add_argument('-d', '--distance', dest='distance', default=200, help = 'Minimum distance between smmips and buffer around region coordinates. Should be greater than read length. Default is 200bp')
     parser.add_argument('-p', '--panel', dest='panel', help = 'Path to panel file with smmip information', required=True)
+    parser.add_argument('-o', '--outdir', dest='outdir', help = 'Directory where to save the bed file with region coordinates')
         
     args = parser.parse_args()
     
     try:
-        find_smmips_regions(args.panel, args.distance)
+        find_smmips_regions(args.panel, args.distance, args.outdir)
     except AttributeError as e:
         print('#############\n')
         print('AttributeError: {0}\n'.format(e))
